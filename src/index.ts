@@ -1,5 +1,5 @@
 import fs from 'fs/promises';
-import {createCanvas, loadImage} from 'canvas';
+import path from 'path';
 
 interface TokenDef {
     address: string;
@@ -22,38 +22,31 @@ interface TokenList {
     tokens: TokenDef[]
 }
 
-const logoSize = 512;
+function getLocalLogoPath(address: string): string {
+    return path.join('.', 'assets', `${address}.png`);
+}
 
-async function downloadLogo(url: string, outFile: string) {
-    const canvas = createCanvas(logoSize, logoSize);
-    const ctx = canvas.getContext('2d');
-    ctx.quality = 'best';
-    console.log(`Attempting to download ${url}`);
-    const image = await loadImage(url);
-    // If they're really small, treat them as pixel art and scale with nearest neighbour
-    if (image.width < logoSize / 4 || image.height < logoSize / 4) {
-        ctx.patternQuality = 'nearest';
+async function doesLogoExist(address: string): Promise<boolean> {
+    try {
+        await fs.access(getLocalLogoPath(address));
+        return true;
+    } catch (err) {
+        return false;
     }
-    ctx.drawImage(image, 0, 0, logoSize, logoSize);
-    const output = canvas.toBuffer('image/png');
-    await fs.writeFile(outFile, output);
 }
 
 async function main(): Promise<void> {
     const tokens: TokenList = JSON.parse((await fs.readFile('icicle.tokenlist.json')).toString());
 
     for (const token of tokens.tokens) {
-        if (token.logoURI) {
-            try {
-            await downloadLogo(token.logoURI, `./assets/${token.address}.png`);
-            } catch (e) {
-                console.log(e);
-
-            }
+        if (await doesLogoExist(token.address)) {
+            token.logoURI = `https://raw.githubusercontent.com/0xicicle/tokenlist/main/assets/${token.address}.png`;
 
         }
 
     }
+
+    await fs.writeFile('icicle.tokenlist.json', JSON.stringify(tokens, undefined, 2));
 }
 
 void main();
